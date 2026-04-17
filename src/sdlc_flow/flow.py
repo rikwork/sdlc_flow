@@ -17,6 +17,7 @@ class SDLCState(BaseModel):
     review: Optional[ReviewArtifact] = None
     qa_report: Optional[QAArtifact] = None
     workspace_dir: str = "."
+    task_complexity: str = "medium"
     status: str = "started"
 
 
@@ -75,9 +76,15 @@ class SDLCFlow(Flow[SDLCState]):
             with open(brainstorm_file, "r") as f:
                 brainstorm_result = f.read()
 
+        import re
+        match = re.search(r'Complexity:\s*(simple|medium|complex)', brainstorm_result, re.IGNORECASE)
+        if match:
+            self.state.task_complexity = match.group(1).lower()
+
         result = self._run_crew_with_cache(DecompositionCrew, "decomposition.json", {
             "task_id": self.state.task_id,
-            "selected_approach": brainstorm_result
+            "selected_approach": brainstorm_result,
+            "task_complexity": self.state.task_complexity
         })
         print(">>> Finished decompose_task")
         return "decomposition_completed"

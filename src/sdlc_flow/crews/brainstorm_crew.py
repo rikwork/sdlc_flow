@@ -34,6 +34,11 @@ class BrainstormCrew:
                 3. Pros and Cons
                 
                 Select the best approach and explain why.
+                
+                At the very end of your report, strictly classify the task complexity and include exactly one of these lines:
+                Complexity: simple
+                Complexity: medium
+                Complexity: complex
             """,
             expected_output="A structured report with 3 approaches, pros/cons, and a final selection.",
             agent=analyst,

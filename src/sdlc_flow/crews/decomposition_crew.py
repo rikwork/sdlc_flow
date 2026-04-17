@@ -26,6 +26,11 @@ class DecompositionCrew:
                 Decompose the following selected approach:
                 {selected_approach}
                 
+                The task complexity is evaluated as: {task_complexity}.
+                If simple, produce very lean/minimal requirements.
+                If medium, produce standard requirements.
+                If complex, produce exhaustive and detailed requirements.
+                
                 Identify:
                 1. Functional requirements (user-facing features)
                 2. Technical requirements (database, API, infrastructure)
