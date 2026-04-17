@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+ENV/
+*.egg-info/
+.pytest_cache/
+
+# Project specific
+tasks/
+*.log
+.DS_Store
+
+# IDEs
+.idea/
+.vscode/

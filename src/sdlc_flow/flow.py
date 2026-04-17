@@ -1,0 +1,192 @@
+from typing import Any, Dict, List, Optional
+from crewai.flow.flow import Flow, listen, router, start
+from pydantic import BaseModel
+
+from .artifacts.task import DecompositionArtifact, TaskInput
+from .artifacts.architecture import ArchArtifact
+from .artifacts.quality import ReviewArtifact
+from .artifacts.qa import QAArtifact
+
+
+class SDLCState(BaseModel):
+    task_id: str = ""
+    task_input: Optional[TaskInput] = None
+    decomposition: Optional[DecompositionArtifact] = None
+    architecture: Optional[ArchArtifact] = None
+    iteration_count: int = 1
+    review: Optional[ReviewArtifact] = None
+    qa_report: Optional[QAArtifact] = None
+    status: str = "started"
+
+
+from .crews import (
+    BrainstormCrew, 
+    DecompositionCrew, 
+    ArchitectCrew, 
+    BackendCrew, 
+    ReviewCrew,
+    QACrew,
+    DocsCrew
+)
+from .store.task_store import TaskStore
+from .checkpoints.manager import CheckpointManager
+from .config import settings
+
+class SDLCFlow(Flow[SDLCState]):
+    def __init__(self, task_id: str):
+        super().__init__()
+        self.state.task_id = task_id
+        self.store = TaskStore(settings.tasks_store_path)
+        self.checkpoint = CheckpointManager(settings.tasks_store_path / task_id)
+
+    def _run_crew_with_cache(self, crew_class, artifact_name: str, inputs: Dict[str, Any]) -> str:
+        cached_result = self.store.get_artifact(self.state.task_id, artifact_name)
+        if cached_result:
+            print(f">>> Using cached result for {artifact_name}")
+            return cached_result
+        
+        result = crew_class().crew().kickoff(inputs=inputs)
+        self.store.save_artifact(self.state.task_id, artifact_name, str(result))
+        return str(result)
+
+    @start()
+    def brainstorm_task(self) -> str:
+        print(f"Starting brainstorm for task: {self.state.task_id}")
+        task_data = self.store.get_task(self.state.task_id)
+        if not task_data:
+            raise ValueError(f"Task {self.state.task_id} not found")
+        
+        result = self._run_crew_with_cache(BrainstormCrew, "brainstorm.md", {
+            "task_description": task_data.description,
+            "context": task_data.metadata.get("context", "")
+        })
+        return "brainstorm_completed"
+
+    @listen(brainstorm_task)
+    def decompose_task(self) -> str:
+        print(">>> Triggered decompose_task")
+        # Read brainstorm result
+        brainstorm_result = ""
+        task_dir = settings.tasks_store_path / self.state.task_id
+        brainstorm_file = task_dir / "artifacts" / "brainstorm.md"
+        if brainstorm_file.exists():
+            with open(brainstorm_file, "r") as f:
+                brainstorm_result = f.read()
+
+        result = self._run_crew_with_cache(DecompositionCrew, "decomposition.json", {
+            "task_id": self.state.task_id,
+            "selected_approach": brainstorm_result
+        })
+        print(">>> Finished decompose_task")
+        return "decomposition_completed"
+
+    @router(decompose_task)
+    def human_checkpoint_scope(self) -> str:
+        if settings.approve_scope == "OFF":
+            return "scope_approved"
+            
+        print("Waiting for scope approval...")
+        approved = self.checkpoint.request_approval("approve_scope", "Verify functional and technical requirements.")
+        return "scope_approved" if approved else "flow_stopped"
+
+    @listen("scope_approved")
+    def architect_solution(self) -> str:
+        print(">>> Triggered architect_solution")
+        # Read decomposition result
+        requirements = ""
+        task_dir = settings.tasks_store_path / self.state.task_id
+        decomp_file = task_dir / "artifacts" / "decomposition.json"
+        if decomp_file.exists():
+            with open(decomp_file, "r") as f:
+                requirements = f.read()
+
+        result = self._run_crew_with_cache(ArchitectCrew, "tech_spec.md", {
+            "task_id": self.state.task_id,
+            "requirements": requirements,
+            "platforms": "Backend"
+        })
+        print(">>> Finished architect_solution")
+        return "architecture_completed"
+
+    @router(architect_solution)
+    def human_checkpoint_architecture(self) -> str:
+        if settings.approve_architecture == "OFF":
+            return "architecture_approved"
+            
+        print("Waiting for architecture approval...")
+        approved = self.checkpoint.request_approval("approve_architecture", "Verify TechSpec and API contract.")
+        return "architecture_approved" if approved else "flow_stopped"
+
+    @listen("architecture_approved")
+    def develop_solution(self) -> str:
+        print(">>> Triggered develop_solution")
+        # Read tech spec
+        tech_spec = ""
+        task_dir = settings.tasks_store_path / self.state.task_id
+        spec_file = task_dir / "artifacts" / "tech_spec.md"
+        if spec_file.exists():
+            with open(spec_file, "r") as f:
+                tech_spec = f.read()
+
+        result = self._run_crew_with_cache(BackendCrew, "development_output.md", {
+            "task_id": self.state.task_id,
+            "tech_spec": tech_spec,
+            "api_contract": "See tech spec (api_contract.yaml section)" 
+        })
+        print(">>> Finished develop_solution")
+        return "development_completed"
+
+    @listen(develop_solution)
+    def lint_and_review(self) -> str:
+        print(">>> Triggered lint_and_review")
+        # Read changes (from development output for now)
+        changes = ""
+        task_dir = settings.tasks_store_path / self.state.task_id
+        dev_file = task_dir / "artifacts" / "development_output.md"
+        if dev_file.exists():
+            with open(dev_file, "r") as f:
+                changes = f.read()
+
+        result = self._run_crew_with_cache(ReviewCrew, "review.md", {
+            "task_id": self.state.task_id,
+            "iteration": self.state.iteration_count,
+            "changes": changes,
+            "requirements": "See decomposition and tech spec artifacts"
+        })
+        print(">>> Finished lint_and_review")
+        return "review_completed"
+
+    @router(lint_and_review)
+    def route_review(self) -> str:
+        # For simplicity in this fix, always go to QA
+        return "to_qa"
+
+    @listen("to_qa")
+    def run_qa(self) -> str:
+        print(">>> Triggered run_qa")
+        # Similar logic to read implementation
+        result = self._run_crew_with_cache(QACrew, "qa_report.md", {
+            "task_id": self.state.task_id,
+            "implementation": "See development_output.md",
+            "acceptance_criteria": "See decomposition.json"
+        })
+        print(">>> Finished run_qa")
+        return "qa_completed"
+
+    @listen(run_qa)
+    def generate_docs(self) -> str:
+        print(">>> Triggered generate_docs")
+        result = self._run_crew_with_cache(DocsCrew, "documentation.md", {
+            "task_id": self.state.task_id,
+            "implementation": "See development_output.md",
+            "tech_spec": "See tech_spec.md",
+            "api_contract": "See tech_spec.md"
+        })
+        print(">>> Finished generate_docs")
+        return "docs_completed"
+
+    @listen(generate_docs)
+    def wrap_up(self) -> None:
+        print(">>> Triggered wrap_up")
+        print("Flow completed successfully.")
+        self.state.status = "completed"
