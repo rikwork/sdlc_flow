@@ -5,6 +5,7 @@ from ..config import settings
 
 
 from ..tools.file_tool import SafeFileWriteTool
+from ..tools.shell_tool import ShellTool
 from crewai_tools import FileReadTool, DirectorySearchTool
 
 class BackendCrew:
@@ -18,13 +19,14 @@ class BackendCrew:
         file_write_tool = SafeFileWriteTool(task_id=self.task_id, workspace_dir=self.workspace_dir)
         file_read_tool = FileReadTool(workspace_dir=self.workspace_dir)
         dir_search_tool = DirectorySearchTool(workspace_dir=self.workspace_dir)
+        shell_tool = ShellTool()
 
         dev = Agent(
             role="Backend Developer",
             goal="Implement backend logic for task {task_id} according to TechSpec and API contract",
             backstory="Expert Python developer. You write clean, testable, and efficient code following PEP 8 and architectural best practices.",
             verbose=True,
-            tools=[file_write_tool, file_read_tool, dir_search_tool],
+            tools=[file_write_tool, file_read_tool, dir_search_tool, shell_tool],
             llm=llm
         )
 

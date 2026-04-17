@@ -18,6 +18,7 @@ class SDLCState(BaseModel):
     qa_report: Optional[QAArtifact] = None
     workspace_dir: str = "."
     task_complexity: str = "medium"
+    max_iterations: int = 3
     status: str = "started"
 
 
@@ -211,8 +212,28 @@ class SDLCFlow(Flow[SDLCState]):
 
     @router(lint_and_review)
     def route_review(self) -> str:
-        # For simplicity in this fix, always go to QA
-        return "to_qa"
+        print(">>> Triggered route_review")
+        review_text = self.store.get_artifact(self.state.task_id, "review.md") or ""
+        
+        import re
+        match = re.search(r'Status:\s*(APPROVED|REJECTED)', review_text, re.IGNORECASE)
+        status = match.group(1).upper() if match else "REJECTED"
+
+        if status == "APPROVED":
+            return "to_qa"
+        else:
+            if self.state.iteration_count >= self.state.max_iterations:
+                print(f"Max iterations ({self.state.max_iterations}) reached. Moving to QA despite rejection.")
+                return "to_qa"
+            
+            self.state.iteration_count += 1
+            print(f"Review REJECTED. Starting iteration {self.state.iteration_count}")
+            return "back_to_dev"
+
+    @listen("back_to_dev")
+    def repeat_development(self) -> str:
+        # This will trigger develop_backend again
+        return self.develop_backend()
 
     @listen("to_qa")
     def run_qa(self) -> str:

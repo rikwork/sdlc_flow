@@ -29,6 +29,9 @@ class ReviewCrew:
                 {requirements}
                 
                 Provide a clear 'APPROVED' or 'REJECTED' with detailed comments and action items.
+                
+                Strict classification:
+                Status: [APPROVED/REJECTED]
             """,
             expected_output="A review report with approval status and comments.",
             agent=reviewer,
