@@ -1,30 +1,45 @@
 import os
+from pathlib import Path
+from pydantic import Field
 from crewai_tools import BaseTool
 
+from ..store.task_store import TaskStore
+from ..store.events import EventRecord, EventType
+from ..config import settings
 
-class FileTool(BaseTool):
-    name: str = "File Tool"
-    description: str = "Perform file operations (read, write, list) within the project directory."
+class SafeFileWriteTool(BaseTool):
+    name: str = "Safe File Write Tool"
+    description: str = "Writes content to a file safely within the designated workspace directory."
+    workspace_dir: str = Field(..., description="The absolute path of the workspace directory")
+    task_id: str = Field(..., description="The task ID for logging")
 
-    def _run(self, action: str, file_path: str, content: str = "") -> str:
-        """Runs a file operation."""
+    def _run(self, file_path: str, content: str = "") -> str:
+        """Writes content to a file path within the workspace_dir."""
         try:
-            full_path = os.path.abspath(file_path)
-            if action == "read":
-                if not os.path.exists(full_path):
-                    return f"Error: File {file_path} does not exist."
-                with open(full_path, "r") as f:
-                    return f.read()
-            elif action == "write":
-                os.makedirs(os.path.dirname(full_path), exist_ok=True)
-                with open(full_path, "w") as f:
-                    f.write(content)
-                return f"File {file_path} written successfully."
-            elif action == "list":
-                if not os.path.isdir(full_path):
-                    return f"Error: {file_path} is not a directory."
-                return "\n".join(os.listdir(full_path))
-            else:
-                return f"Error: Unknown action '{action}'."
+            workspace_path = Path(self.workspace_dir).resolve()
+            target_path = Path(file_path)
+            
+            if not target_path.is_absolute():
+                target_path = workspace_path / target_path
+                
+            target_path = target_path.resolve()
+
+            if not str(target_path).startswith(str(workspace_path)):
+                return f"Error: Path {file_path} is outside the allowed workspace {workspace_path}."
+                
+            os.makedirs(os.path.dirname(target_path), exist_ok=True)
+            with open(target_path, "w") as f:
+                f.write(content)
+
+            store = TaskStore(settings.tasks_store_path)
+            event = EventRecord(
+                task_id=self.task_id,
+                event_type=EventType.FILE_OPERATION,
+                action="file_write",
+                data={"file_path": str(target_path)}
+            )
+            store.log_event(event)
+
+            return f"File {file_path} written successfully."
         except Exception as e:
             return f"File operation failed: {str(e)}"

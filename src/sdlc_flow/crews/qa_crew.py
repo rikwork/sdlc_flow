@@ -3,6 +3,10 @@ from ..config import settings
 
 
 class QACrew:
+    def __init__(self, task_id: str = "", workspace_dir: str = "."):
+        self.task_id = task_id
+        self.workspace_dir = workspace_dir
+
     def crew(self) -> Crew:
         llm = settings.get_llm("qa")
 

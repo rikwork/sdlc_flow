@@ -16,6 +16,7 @@ class SDLCState(BaseModel):
     iteration_count: int = 1
     review: Optional[ReviewArtifact] = None
     qa_report: Optional[QAArtifact] = None
+    workspace_dir: str = "."
     status: str = "started"
 
 
@@ -33,9 +34,10 @@ from .checkpoints.manager import CheckpointManager
 from .config import settings
 
 class SDLCFlow(Flow[SDLCState]):
-    def __init__(self, task_id: str):
+    def __init__(self, task_id: str, workspace_dir: str = "."):
         super().__init__()
         self.state.task_id = task_id
+        self.state.workspace_dir = str(workspace_dir)
         self.store = TaskStore(settings.tasks_store_path)
         self.checkpoint = CheckpointManager(settings.tasks_store_path / task_id)
 
@@ -45,7 +47,7 @@ class SDLCFlow(Flow[SDLCState]):
             print(f">>> Using cached result for {artifact_name}")
             return cached_result
         
-        result = crew_class().crew().kickoff(inputs=inputs)
+        result = crew_class(task_id=self.state.task_id, workspace_dir=self.state.workspace_dir).crew().kickoff(inputs=inputs)
         self.store.save_artifact(self.state.task_id, artifact_name, str(result))
         return str(result)
 

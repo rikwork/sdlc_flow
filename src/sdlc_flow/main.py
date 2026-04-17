@@ -20,6 +20,7 @@ store = TaskStore(settings.tasks_store_path)
 def run(
     task: str = typer.Option(..., "--task", "-t", help="Task description"),
     task_id: Optional[str] = typer.Option(None, "--id", help="UUID for the task"),
+    workspace: str = typer.Option(".", "--workspace", "-w", help="Workspace directory for the project")
 ):
     """Start a new SDLC flow for a task."""
     uid = task_id or str(uuid.uuid4())[:8]
@@ -34,7 +35,7 @@ def run(
     store.log_event(event)
 
     # Initialize and start Flow
-    flow = SDLCFlow(task_id=uid)
+    flow = SDLCFlow(task_id=uid, workspace_dir=workspace)
     
     try:
         flow.kickoff()

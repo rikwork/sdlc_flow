@@ -15,6 +15,7 @@ class EventType(str, Enum):
     ITERATION_COMPLETED = "iteration_completed"
     FLOW_COMPLETED = "flow_completed"
     FLOW_FAILED = "flow_failed"
+    FILE_OPERATION = "file_operation"
 
 
 class EventRecord(BaseModel):

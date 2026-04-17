@@ -5,6 +5,10 @@ from ..config import settings
 
 
 class DecompositionCrew:
+    def __init__(self, task_id: str = "", workspace_dir: str = "."):
+        self.task_id = task_id
+        self.workspace_dir = workspace_dir
+
     def crew(self) -> Crew:
         llm = settings.get_llm("decomposition")
 
