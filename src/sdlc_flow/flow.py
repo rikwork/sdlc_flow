@@ -126,9 +126,30 @@ class SDLCFlow(Flow[SDLCState]):
         approved = self.checkpoint.request_approval("approve_architecture", "Verify TechSpec and API contract.")
         return "architecture_approved" if approved else "flow_stopped"
 
-    @listen("architecture_approved")
-    def develop_solution(self) -> str:
-        print(">>> Triggered develop_solution")
+    @router("architecture_approved")
+    def route_development(self) -> str:
+        print(">>> Triggered route_development")
+        spec = self.store.get_artifact(self.state.task_id, "tech_spec.md")
+        if not spec:
+            return "develop_backend"
+            
+        import re
+        needs_api_match = re.search(r'Needs API:\s*(true|false)', spec, re.IGNORECASE)
+        needs_ui_match = re.search(r'Needs UI:\s*(true|false)', spec, re.IGNORECASE)
+        
+        needs_api = needs_api_match.group(1).lower() == 'true' if needs_api_match else True
+        needs_ui = needs_ui_match.group(1).lower() == 'true' if needs_ui_match else False
+
+        if needs_api:
+            return "develop_backend"
+        elif needs_ui:
+            return "develop_frontend"
+        else:
+            return "skip_development"
+
+    @listen("develop_backend")
+    def develop_backend(self) -> str:
+        print(">>> Triggered develop_backend")
         # Read tech spec
         tech_spec = ""
         task_dir = settings.tasks_store_path / self.state.task_id
@@ -142,10 +163,21 @@ class SDLCFlow(Flow[SDLCState]):
             "tech_spec": tech_spec,
             "api_contract": "See tech spec (api_contract.yaml section)" 
         })
-        print(">>> Finished develop_solution")
+        print(">>> Finished develop_backend")
         return "development_completed"
 
-    @listen(develop_solution)
+    @listen("develop_frontend")
+    def develop_frontend(self) -> str:
+        print(">>> Triggered develop_frontend (Placeholder)")
+        # In the future, run WebDevCrew
+        return "development_completed"
+
+    @listen("skip_development")
+    def skip_development(self) -> str:
+        print(">>> Triggered skip_development")
+        return "development_completed"
+
+    @listen("development_completed")
     def lint_and_review(self) -> str:
         print(">>> Triggered lint_and_review")
         # Read changes (from development output for now)

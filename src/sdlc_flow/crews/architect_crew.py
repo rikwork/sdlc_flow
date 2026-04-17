@@ -44,8 +44,12 @@ class ArchitectCrew:
                 3. Tech Lead: Review and finalize the architectural design.
                 
                 Platforms to consider: {platforms}
+                
+                At the end of your document, strictly include these exact lines based on your design decisions:
+                Needs API: [true/false]
+                Needs UI: [true/false]
             """,
-            expected_output="Final TechSpec.md and api_contract.yaml.",
+            expected_output="Final TechSpec.md and api_contract.yaml with Needs API/UI flags appended.",
             agent=tech_lead,
         )
 
