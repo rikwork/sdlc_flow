@@ -36,6 +36,9 @@ class BackendCrew:
                 API Contract:
                 {api_contract}
                 
+                Semantic Codebase Context:
+                {rag_context}
+                
                 Ensure the code is complete, includes unit tests, and follows the project structure.
             """,
             expected_output="Finished source code and tests.",

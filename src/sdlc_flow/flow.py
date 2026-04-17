@@ -158,10 +158,22 @@ class SDLCFlow(Flow[SDLCState]):
             with open(spec_file, "r") as f:
                 tech_spec = f.read()
 
+        from .rag.service import RAGService
+        db_path = settings.tasks_store_path / self.state.task_id / "rag_db"
+        try:
+            rag_service = RAGService(db_path)
+            # Use top match algorithm or basic embedding search based on tech spec excerpt
+            rag_context_list = rag_service.query(tech_spec[:1000], n_results=3)
+            rag_context = "\n---\n".join(rag_context_list) if rag_context_list else "No related codebase context found."
+        except Exception as e:
+            print(f"Warning: Context injection failed - {e}")
+            rag_context = "No specific codebase context found."
+
         result = self._run_crew_with_cache(BackendCrew, "development_output.md", {
             "task_id": self.state.task_id,
             "tech_spec": tech_spec,
-            "api_contract": "See tech spec (api_contract.yaml section)" 
+            "api_contract": "See tech spec (api_contract.yaml section)",
+            "rag_context": rag_context
         })
         print(">>> Finished develop_backend")
         return "development_completed"

@@ -8,11 +8,25 @@ class RAGService:
     def __init__(self, db_path: Path):
         self.db_path = db_path
         self.client = chromadb.PersistentClient(path=str(db_path))
-        self.embedding_function = embedding_functions.DefaultEmbeddingFunction()
+        from ..config import settings
+        self.embedding_function = embedding_functions.OllamaEmbeddingFunction(
+            url=f"{settings.ollama_base_url}/api/embeddings",
+            model_name="nomic-embed-text"
+        )
         self.collection = self.client.get_or_create_collection(
             name="sdlc_context", 
             embedding_function=self.embedding_function
         )
+
+    def index_file(self, file_path: Path) -> None:
+        from .chunker import chunk_file
+        import uuid
+        chunks = chunk_file(file_path)
+        if chunks:
+            docs = [c["text"] for c in chunks]
+            metadatas = [c["metadata"] for c in chunks]
+            ids = [f"{c['metadata']['file']}_{uuid.uuid4().hex[:8]}" for c in chunks]
+            self.collection.add(documents=docs, metadatas=metadatas, ids=ids)
 
     def add_documents(self, documents: List[str], metadatas: List[Dict[str, Any]], ids: List[str]) -> None:
         """Add documentation or code snippets to the RAG collection."""
