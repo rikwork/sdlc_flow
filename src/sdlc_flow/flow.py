@@ -1,6 +1,10 @@
+import os
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 from crewai.flow.flow import Flow, listen, router, start
 from pydantic import BaseModel
+
+from .rag.service import RAGService
 
 from .artifacts.task import DecompositionArtifact, TaskInput
 from .artifacts.architecture import ArchArtifact
@@ -156,9 +160,23 @@ class SDLCFlow(Flow[SDLCState]):
         else:
             return "skip_development"
 
+    def _sync_rag(self) -> None:
+        """Helper to sync workspace code into RAG store."""
+        if not self.state.workspace_dir or self.state.workspace_dir == ".":
+            return
+            
+        try:
+            rag_service = RAGService(Path(self.state.rag_db_path))
+            rag_service.index_directory(Path(self.state.workspace_dir))
+        except Exception as e:
+            print(f"Warning: RAG sync failed - {e}")
+
     @listen("develop_backend")
     def develop_backend(self) -> str:
         print(">>> Triggered develop_backend")
+        # Sync RAG before development to catch external changes
+        self._sync_rag()
+        
         # Read tech spec
         tech_spec = ""
         task_dir = settings.tasks_store_path / self.state.task_id
@@ -167,7 +185,6 @@ class SDLCFlow(Flow[SDLCState]):
             with open(spec_file, "r") as f:
                 tech_spec = f.read()
 
-        from .rag.service import RAGService
         try:
             rag_service = RAGService(Path(self.state.rag_db_path))
             # Use top match algorithm or basic embedding search based on tech spec excerpt
@@ -184,6 +201,10 @@ class SDLCFlow(Flow[SDLCState]):
             "rag_context": rag_context,
             "rag_db_path": self.state.rag_db_path
         })
+        
+        # Sync RAG after development to index newly written code
+        self._sync_rag()
+        
         print(">>> Finished develop_backend")
         return "development_completed"
 

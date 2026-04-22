@@ -53,6 +53,22 @@ class RAGService:
         # Return only the documents from the results
         return results['documents'][0] if results['documents'] else []
 
+    def index_directory(self, directory: Path) -> None:
+        """Recursively index all supported files in a directory."""
+        supported_extensions = {".py", ".js", ".ts", ".md", ".yaml", ".yml"}
+        files_to_index = []
+        for root, _, files in os.walk(directory):
+            # Skip hidden directories like .git or .sdlc_rag
+            if any(part.startswith('.') for part in Path(root).parts):
+                continue
+            for file in files:
+                if Path(file).suffix in supported_extensions:
+                    files_to_index.append(Path(root) / file)
+        
+        print(f">>> Bulk indexing {len(files_to_index)} files from {directory}...")
+        for file_path in files_to_index:
+            self.index_file(file_path)
+
     def clear(self) -> None:
         """Reset the internal collection."""
         self.client.delete_collection("sdlc_context")

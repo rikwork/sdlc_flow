@@ -32,13 +32,6 @@ class SafeFileWriteTool(BaseTool):
             with open(target_path, "w") as f:
                 f.write(content)
 
-            from ..rag.service import RAGService
-            try:
-                rag_service = RAGService(Path(self.rag_db_path))
-                rag_service.index_file(target_path)
-            except Exception as e:
-                print(f"Warning: RAG indexing failed for {target_path} - {e}")
-
             store = TaskStore(settings.tasks_store_path)
             event = EventRecord(
                 task_id=self.task_id,
