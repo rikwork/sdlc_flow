@@ -19,6 +19,7 @@ class SDLCState(BaseModel):
     workspace_dir: str = "."
     task_complexity: str = "medium"
     max_iterations: int = 3
+    rag_db_path: str = ""
     status: str = "started"
 
 
@@ -40,6 +41,13 @@ class SDLCFlow(Flow[SDLCState]):
         super().__init__()
         self.state.task_id = task_id
         self.state.workspace_dir = str(workspace_dir)
+        
+        # Calculate shared RAG path
+        if self.state.workspace_dir and self.state.workspace_dir != ".":
+            self.state.rag_db_path = str(Path(self.state.workspace_dir).resolve() / ".sdlc_rag")
+        else:
+            self.state.rag_db_path = str(settings.tasks_store_path / self.state.task_id / "rag_db")
+            
         self.store = TaskStore(settings.tasks_store_path)
         self.checkpoint = CheckpointManager(settings.tasks_store_path / task_id)
 
@@ -160,9 +168,8 @@ class SDLCFlow(Flow[SDLCState]):
                 tech_spec = f.read()
 
         from .rag.service import RAGService
-        db_path = settings.tasks_store_path / self.state.task_id / "rag_db"
         try:
-            rag_service = RAGService(db_path)
+            rag_service = RAGService(Path(self.state.rag_db_path))
             # Use top match algorithm or basic embedding search based on tech spec excerpt
             rag_context_list = rag_service.query(tech_spec[:1000], n_results=3)
             rag_context = "\n---\n".join(rag_context_list) if rag_context_list else "No related codebase context found."
@@ -174,7 +181,8 @@ class SDLCFlow(Flow[SDLCState]):
             "task_id": self.state.task_id,
             "tech_spec": tech_spec,
             "api_contract": "See tech spec (api_contract.yaml section)",
-            "rag_context": rag_context
+            "rag_context": rag_context,
+            "rag_db_path": self.state.rag_db_path
         })
         print(">>> Finished develop_backend")
         return "development_completed"

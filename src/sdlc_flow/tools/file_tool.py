@@ -11,6 +11,7 @@ class SafeFileWriteTool(BaseTool):
     name: str = "Safe File Write Tool"
     description: str = "Writes content to a file safely within the designated workspace directory."
     workspace_dir: str = Field(..., description="The absolute path of the workspace directory")
+    rag_db_path: str = Field(..., description="The path to the RAG database")
     task_id: str = Field(..., description="The task ID for logging")
 
     def _run(self, file_path: str, content: str = "") -> str:
@@ -32,9 +33,8 @@ class SafeFileWriteTool(BaseTool):
                 f.write(content)
 
             from ..rag.service import RAGService
-            db_path = settings.tasks_store_path / self.task_id / "rag_db"
             try:
-                rag_service = RAGService(db_path)
+                rag_service = RAGService(Path(self.rag_db_path))
                 rag_service.index_file(target_path)
             except Exception as e:
                 print(f"Warning: RAG indexing failed for {target_path} - {e}")

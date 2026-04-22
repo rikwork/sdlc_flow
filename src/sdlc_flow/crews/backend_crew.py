@@ -9,14 +9,19 @@ from ..tools.shell_tool import ShellTool
 from crewai_tools import FileReadTool, DirectorySearchTool
 
 class BackendCrew:
-    def __init__(self, task_id: str, workspace_dir: str):
+    def __init__(self, task_id: str, workspace_dir: str, rag_db_path: str = ""):
         self.task_id = task_id
         self.workspace_dir = workspace_dir
+        self.rag_db_path = rag_db_path
 
     def crew(self) -> Crew:
         llm = settings.get_llm("backend_dev")
         
-        file_write_tool = SafeFileWriteTool(task_id=self.task_id, workspace_dir=self.workspace_dir)
+        file_write_tool = SafeFileWriteTool(
+            task_id=self.task_id, 
+            workspace_dir=self.workspace_dir,
+            rag_db_path=self.rag_db_path
+        )
         file_read_tool = FileReadTool(workspace_dir=self.workspace_dir)
         dir_search_tool = DirectorySearchTool(workspace_dir=self.workspace_dir)
         shell_tool = ShellTool()

@@ -21,6 +21,14 @@ class RAGService:
     def index_file(self, file_path: Path) -> None:
         from .chunker import chunk_file
         import uuid
+        
+        # Basic check: if file already indexed, skip for now. 
+        # In a real system, we'd check hashes.
+        results = self.collection.get(where={"file": str(file_path)})
+        if results and results['ids']:
+            print(f">>> Skipping indexing for {file_path}, already exists in RAG.")
+            return
+
         chunks = chunk_file(file_path)
         if chunks:
             docs = [c["text"] for c in chunks]
